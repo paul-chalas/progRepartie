@@ -1,3 +1,4 @@
+#include <iostream>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -7,11 +8,11 @@
 #include <time.h>
 #include <stdlib.h>
 
+using namespace std;
+
 #define NUM_PORT 50013
 #define BACKLOG 50
 #define NB_CLIENTS 100
-
-using namespace std;
 
 void exitErreur(const char * msg) {
 	perror(msg);
@@ -26,7 +27,7 @@ int main() {
 
 	sockaddr_serveur.sin_family = AF_INET;
 	sockaddr_serveur.sin_port = htons(NUM_PORT);
-	inet_aton("10.203.9.209",&sockaddr_serveur.sin_addr);
+	sockaddr_serveur.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	int yes = 1;
 	if (setsockopt(sock_serveur, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))
@@ -40,33 +41,43 @@ int main() {
 	if (listen(sock_serveur, BACKLOG) == -1)
 		exitErreur("listen");
 
-	cout << "Serveur de chat lancé sur le port " << NUM_PORT << endl;
-
 	int sock_client;
 
-	sock_client = accept(sock_serveur, NULL, NULL);
-	if (sock_client == -1)
-		exitErreur("accept");
 
-	ssize_t nbOctetsLus = 0;
-	char buf [1];
-	string resultat = "";
+	time_t date;
 
-	while (nbOctetsLus = read(sock_client,buf,sizeof(buf)) > 0) {
-		resultat += string(buf,nbOctetsLus);
-		if(string(buf,nbOctetsLus) == "\n"){
-			if(resultat == "bye\r\n") break;
-			cout<<resultat;
-			resultat ="";
-			string msg;
-			getline(cin,msg);
-			if (msg == "bye") return 0;
-			msg += "\n";
-			const char * stringMessage = msg.c_str();
-			if (write(sock_client,stringMessage,strlen(stringMessage)) == -1) exitErreur("write");
-		}
+	cout << "Serveur chat lancé  sur le port " << NUM_PORT << endl;
+
+	for (int i = 1; i <= NB_CLIENTS; i++) {
+
+		sock_client = accept(sock_serveur, NULL, NULL);
+		if (sock_client == -1)
+			exitErreur("accept");
+      int lu(0);
+      char buffer[250];
+      string msgRecu = "";
+      while (lu = read(sock_client, buffer, sizeof(buffer))) {
+        bool endCom = false;
+        string bufferLu = string(buffer,lu);
+        for(char c : bufferLu){
+          if (c == '\n'){
+            endCom = true;
+          }
+        }
+        if(endCom){
+          cout << bufferLu;
+          string msg;
+          getline(cin,msg);
+          const char * cmsg = msg.c_str();
+          if (write(sock_client, cmsg, strlen(cmsg)) == -1) exitErreur("write");
+          msgRecu = "";
+        } else {
+          msgRecu += bufferLu;
+          if (msgRecu == "bye") return 0;
+        }
+      }
+      close(sock_serveur);
 	}
-	close(sock_serveur);
-	close(sock_client);
+  close(sock_serveur);
 	return 0;
 }
